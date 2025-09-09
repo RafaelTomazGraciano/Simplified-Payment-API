@@ -6,44 +6,49 @@ import com.simplifiedpicpay.entities.User;
 import com.simplifiedpicpay.exceptions.NotAuthorized;
 import com.simplifiedpicpay.repositories.TransactionRepository;
 import jakarta.transaction.Transactional;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.RestTemplate;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
-
+@RequiredArgsConstructor
 @Service
 public class TransactionService {
 
-    @Autowired
     private UserService userService;
 
-    @Autowired
     private TransactionRepository transactionRepository;
 
-    @Autowired
-    private RestTemplate restTemplate;
+    private AuthorizationService authorizationService;
 
-    @Autowired
+    private TransactionValidator transactionValidator;
+
     private NotificationService notificationService;
 
     @Transactional
     public Transaction creteTransaction(TransactionDTO transactionDTO) throws Exception{
         User payer = this.userService.findUserbyId(transactionDTO.payerId());
         User payee = this.userService.findUserbyId(transactionDTO.payeeId());
+        validate(payer, transactionDTO);
+        Transaction newTransaction = executeTransaction(payer, payee, transactionDTO);
+        notifyUsers(payer, payee);
+        return newTransaction;
+    }
 
-        userService.validateTransaction(payer, transactionDTO.value());
+    public List<Transaction> getAllTransactions() {
+        return transactionRepository.findAll();
+    }
 
-        if(!authorizedTransaction(payer, transactionDTO.value())){
+    private void validate(User payer, TransactionDTO transactionDTO) throws Exception {
+        transactionValidator.validateTransaction(payer, transactionDTO.value());
+
+        if(!authorizationService.authorizedTransaction()){
             throw new NotAuthorized("Transaction not authorized");
         }
+    }
 
+    private Transaction executeTransaction(User payer, User payee, TransactionDTO transactionDTO){
         Transaction newTransaction = new Transaction();
         newTransaction.setValue(transactionDTO.value());
         newTransaction.setPayer(payer);
@@ -57,25 +62,12 @@ public class TransactionService {
         userService.saveUser(payer);
         userService.saveUser(payee);
 
+        return  newTransaction;
+    }
+
+    private void notifyUsers(User payer, User payee){
         notificationService.sendNotification(payer, "Transaction completed successfully");
         notificationService.sendNotification(payee, "Transaction received successfully");
-
-        return newTransaction;
-    }
-
-    public boolean authorizedTransaction(User payer, BigDecimal value) throws Exception{
-        String url = "https://util.devi.tools/api/v2/authorize";
-
-        try{
-            ResponseEntity<Void> response = restTemplate.getForEntity(url, Void.class);
-            return response.getStatusCode().is2xxSuccessful();
-        }catch(HttpClientErrorException | HttpServerErrorException e){
-            return false;
-        }
-    }
-
-    public List<Transaction> getAllTransactions() {
-        return transactionRepository.findAll();
     }
 
 }

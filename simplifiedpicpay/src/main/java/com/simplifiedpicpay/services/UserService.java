@@ -22,16 +22,6 @@ public class UserService {
     @Autowired
     private UserRepository userRepository;
 
-    public void validateTransaction(User payer, BigDecimal value) throws Exception{
-        if(payer.getUserType() == UserType.MERCHANT){
-            throw new NotAuthorized("Merchant user is not authorized to accomplish a transaction");
-        }
-
-        if (payer.getBalance().compareTo(value) < 0) {
-            throw new InsufficientFunds("Insufficient funds to accomplish a transaction");
-        }
-    }
-
     public User findUserbyId(Long id) throws Exception{
         return this.userRepository.findById(id).orElseThrow(()->new EntityNotFoundException("User not found"));
     }
