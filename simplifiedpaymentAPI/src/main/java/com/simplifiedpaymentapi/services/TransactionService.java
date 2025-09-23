@@ -9,6 +9,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @RequiredArgsConstructor
@@ -36,6 +37,10 @@ public class TransactionService {
     }
 
     private void validate(User payer, TransactionDTO transactionDTO) throws Exception {
+        if (transactionDTO.value().compareTo(BigDecimal.ZERO) <= 0){
+            throw new NotAuthorized("Transaction not valid");
+        }
+
         transactionValidator.validateTransaction(payer, transactionDTO.value());
 
         if(!authorizationService.authorizedTransaction()){
